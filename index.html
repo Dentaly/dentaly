@@ -34,9 +34,11 @@
 </head>
 <body>
 <script>
-/* DENTALY COMO APP. Este archivo solo "abre" el sistema de Apps Script en
-   pantalla completa y en su propia ventana. No guarda datos de pacientes:
-   el PIN se queda solo en ESTE teléfono. */
+/* DENTALY COMO APP. Este archivo "abre" el sistema de Apps Script en
+   pantalla completa y en su propia ventana. El PIN se queda solo en ESTE teléfono.
+   ⚡ (2026-11-05) También guarda EN ESTE TELÉFONO una copia de las pantallas que se abren
+   (inicio, agenda, fichas del día, material) para que abran al instante y se puedan ver
+   sin internet. Lo de Material que se registre sin internet se manda al regresar la señal. */
 var SISTEMA = 'https://script.google.com/macros/s/AKfycbwExKBacg6rF_7T1fQddk8YhgOCHolOXoD2JGw13KIHwdKGHHvWK9pzbGlMj1mmb9Wchw/exec';
 var K_PIN = 'dentaly_app_pin', K_INICIO = 'dentaly_app_inicio';
 function lsG(k){ try { return localStorage.getItem(k) || ''; } catch(e){ return ''; } }
@@ -45,6 +47,19 @@ function lsS(k, v){ try { localStorage.setItem(k, v); } catch(e){} }
 /* Ligas directas: https://elernest99.github.io/dentaly/?caja=DX-065 (o ?id=,
    ?orden=, ?fecha=...) abren ESA pantalla dentro de la app. En Android, si la
    app está instalada, el teléfono abre estas ligas en la app y no en Chrome. */
+var HREF0 = location.href;   // la liga con la que se abrió (antes de limpiarla)
+/* 🛡 (2026-11-05) ¿Es una visita NUEVA (se escaneó el QR) o la página se volvió a cargar sola?
+   Recargar, regresar, una pestaña que el navegador restaura o una sugerencia que Chrome
+   "precarga" al tocar la barra de direcciones NO son un escaneo: el material se abre solo
+   para verlo (ver=1) y no se descuenta nada. */
+function visitaNueva(){
+  try { if (document.prerendering || VINO_DE_PRECARGA) return false; } catch(e){}
+  try { var n = performance.getEntriesByType('navigation')[0]; if (n && n.type && n.type !== 'navigate') return false; } catch(e){}
+  try { if (performance.navigation && performance.navigation.type !== 0) return false; } catch(e){}
+  return true;
+}
+var VINO_DE_PRECARGA = false;
+try { if (document.prerendering) VINO_DE_PRECARGA = true; } catch(e){}
 function destinoDeLiga(){
   var q = (location.search || '').replace(/^\?/, '');
   if (!q) return '';
@@ -52,7 +67,14 @@ function destinoDeLiga(){
     var k = kv.split('=')[0];
     return k && k !== 'config' && k !== 'pin';
   });
+  var esMaterial = partes.some(function(kv){ return kv.split('=')[0] === 'inv'; });
+  if (esMaterial && !visitaNueva() && partes.indexOf('ver=1') === -1) partes.push('ver=1');
   return partes.join('&');
+}
+/* La dirección se limpia después de abrir: así, si la pestaña se recarga o la liga queda en el
+   historial del navegador, ya no trae el material (?inv=…) y no puede volver a registrar una salida. */
+function limpiarDireccion(){
+  try { if (location.search && location.search.indexOf('config') === -1) history.replaceState(null, '', location.pathname); } catch(e){}
 }
 
 /* REGRESAR DONDE ESTABA (2026-10-28): el sistema avisa en qué pantalla va
@@ -92,6 +114,106 @@ window.addEventListener('message', function(e){
   if (d.dentalyAviso) notificar(d.dentalyAviso);
 });
 
+/* ═══ ⚡ COPIAS EN EL TELÉFONO (IndexedDB) ═══ */
+var DB = null, DB_CB = [];
+(function(){ try { var r = indexedDB.open('dentaly', 1); r.onupgradeneeded = function(){ var d = r.result; ['snap', 'resp', 'cola'].forEach(function(n){ if (!d.objectStoreNames.contains(n)) d.createObjectStore(n, n === 'cola' ? { keyPath: 'id', autoIncrement: true } : undefined); }); };
+  r.onsuccess = function(){ DB = r.result; DB_CB.splice(0).forEach(function(f){ f(); }); }; r.onerror = function(){ DB_CB.splice(0).forEach(function(f){ f(); }); }; } catch(e){} })();
+function conDB(f){ if (DB) f(); else DB_CB.push(f); setTimeout(function(){ var i = DB_CB.indexOf(f); if (i !== -1) { DB_CB.splice(i, 1); f(); } }, 1500); }
+function dbGet(st, k, cb){ conDB(function(){ if (!DB) { cb(null); return; } try { var q = DB.transaction(st).objectStore(st).get(k); q.onsuccess = function(){ cb(q.result || null); }; q.onerror = function(){ cb(null); }; } catch(e){ cb(null); } }); }
+function dbPut(st, k, v){ conDB(function(){ if (!DB) return; try { var os = DB.transaction(st, 'readwrite').objectStore(st); if (k === null) os.add(v); else os.put(v, k); } catch(e){} }); }
+function dbDel(st, k){ conDB(function(){ if (!DB) return; try { DB.transaction(st, 'readwrite').objectStore(st).delete(k); } catch(e){} }); }
+function dbTodos(st, cb){ conDB(function(){ if (!DB) { cb([]); return; } try { var q = DB.transaction(st).objectStore(st).getAll(); q.onsuccess = function(){ cb(q.result || []); }; q.onerror = function(){ cb([]); }; } catch(e){ cb([]); } }); }
+function paramsDe(q){ var p = {}; String(q || '').replace(/^[?]/, '').split('&').forEach(function(kv){ if (!kv) return; var i = kv.indexOf('='); var k = decodeURIComponent((i === -1 ? kv : kv.slice(0, i)).replace(/[+]/g, ' ')); if (k) p[k] = i === -1 ? '' : decodeURIComponent(kv.slice(i + 1).replace(/[+]/g, ' ')); }); return p; }
+// Igual que en el sistema: qué pantalla es cada liga.
+function claveDe(p){
+  if (p.id) return 'f:' + p.id; if (p.agenda) return 'agenda'; if (p.rxsubir) return 'rx'; if (p.mi) return 'mi:' + p.mi + (p.mes ? ':' + p.mes : '');
+  if (p.caja) return 'caja:' + p.caja; if ('inv' in p) return 'inv:' + p.inv; if ('banco' in p) return 'banco'; if ('fact' in p) return 'fact'; if ('pedido' in p) return 'pedido';
+  if (p.orden) return 'orden:' + p.orden; if (p.accion || p.pac) return 'home:x'; return 'home';
+}
+function llaveSnap(k){ return lsG(K_PIN) + '|' + k; }
+var K_IDX = 'dentaly_snaps';
+function snapIndice(){ try { return JSON.parse(lsG(K_IDX) || '{}'); } catch(e){ return {}; } }
+function snapGuardar(k, html, t){
+  var idx = snapIndice(), ll = llaveSnap(k); idx[ll] = t || Date.now(); dbPut('snap', ll, { html: html, t: t || Date.now() });
+  var ks = Object.keys(idx).sort(function(a, b){ return idx[a] - idx[b]; });
+  while (ks.length > 60) { var v = ks.shift(); delete idx[v]; dbDel('snap', v); }   // máximo 60 pantallas guardadas
+  lsS(K_IDX, JSON.stringify(idx));
+}
+var SISTEMA_LISTO = false;
+window.addEventListener('message', function(e){
+  var d = e && e.data; if (!d) return;
+  if (d.dentalySnap && d.dentalySnap.k && d.dentalySnap.html) snapGuardar(d.dentalySnap.k, d.dentalySnap.html, d.dentalySnap.t);
+  if (d.dentalySnapPide && e.source) { var q = d.dentalySnapPide; dbGet('snap', llaveSnap(q.k), function(r){ try { e.source.postMessage({ dentalySnapResp: { id: q.id, html: r ? r.html : '', t: r ? r.t : 0 } }, '*'); } catch(er){} }); }
+  if (d.dentalyResp && d.dentalyResp.fn) dbPut('resp', lsG(K_PIN) + '|' + d.dentalyResp.fn + '|' + d.dentalyResp.a, { r: d.dentalyResp.r, t: d.dentalyResp.t });
+  if (d.dentalyListo && e.source) {
+    SISTEMA_LISTO = true; quitarAvisoLento();
+    try { e.source.postMessage({ dentalyAppV: 2 }, '*'); } catch(er){}
+    dbTodos('cola', function(l){ if (l.length) try { e.source.postMessage({ dentalyCola: l }, '*'); } catch(er){} });   // lo guardado sin internet
+  }
+  if (d.dentalyColaHecha) d.dentalyColaHecha.forEach(function(id){ dbDel('cola', id); });
+});
+
+/* 📴 SIN INTERNET: se muestran las copias guardadas (solo para ver). Material sí registra: se guarda aquí
+   y se manda solo al regresar la señal. */
+var COLA_OK = { apiInvSalida: 1, apiInvEntrada: 1, apiInvConteo: 1, apiInvCaducidad: 1, apiInvProveedor: 1, apiInvContenido: 1 };
+var OFF = false;
+function horaDe(t){ var d = new Date(t); return d.getHours() + ':' + ('0' + d.getMinutes()).slice(-2); }
+function avisoOff(t){ var b = document.getElementById('offBar'); if (!b) { b = document.createElement('div'); b.id = 'offBar'; b.style.cssText = 'position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:50;background:#7C2D12;color:#fff;border-radius:999px;padding:9px 14px;font:700 12.5px Arial,sans-serif;box-shadow:0 6px 18px rgba(0,0,0,.3);max-width:92%;text-align:center;'; document.body.appendChild(b); } b.textContent = t; }
+function corredorOff(st){
+  return new Proxy({}, { get: function(o, name){
+    if (name === 'withSuccessHandler') return function(f){ return corredorOff({ ok: f, mal: st.mal, uo: st.uo }); };
+    if (name === 'withFailureHandler') return function(f){ return corredorOff({ ok: st.ok, mal: f, uo: st.uo }); };
+    if (name === 'withUserObject') return function(u){ return corredorOff({ ok: st.ok, mal: st.mal, uo: u }); };
+    if (typeof name !== 'string' || name === 'then') return undefined;
+    return function(){
+      var args = Array.prototype.slice.call(arguments), fn = name;
+      if (COLA_OK[fn]) { dbPut('cola', null, { fn: fn, args: args, t: Date.now() }); setTimeout(function(){ if (st.ok) st.ok({ ok: true, row: 0, offline: true }, st.uo); }, 30); avisoOff('📴 Sin internet · guardado en el teléfono, se manda al regresar la señal'); return; }
+      dbGet('resp', lsG(K_PIN) + '|' + fn + '|' + JSON.stringify(args), function(r){
+        if (r) { if (st.ok) st.ok(r.r, st.uo); }
+        else if (st.mal) st.mal(new Error('📴 Sin internet: esto se puede hacer cuando regrese la señal.'), st.uo);
+      });
+    };
+  } });
+}
+function prepararOff(){
+  window.google = { script: { run: corredorOff({}), history: { push: function(){}, replace: function(){}, setChangeHandler: function(){} }, url: { getLocation: function(cb){ if (cb) cb({ parameter: {}, parameters: {}, hash: '' }); } }, host: { close: function(){}, setHeight: function(){}, setWidth: function(){}, editor: { focus: function(){} } } } };
+  window.appRun = function(){ return corredorOff({}); };
+  window.appPrefetch = function(){};
+  window.appEsInterna = function(h){ h = String(h || ''); return !!h && (h.charAt(0) === '?' || h.indexOf(SISTEMA) === 0 || /script[.]google[.]com[/](a[/][^/]+[/])?macros[/]s[/][^/?]+[/](exec|dev)/.test(h)); };
+  window.appIr = function(u){
+    if (typeof u === 'string' && !appEsInterna(u)) { window.open(u, '_blank'); return; }
+    var p = typeof u === 'string' ? paramsDe(u.indexOf('?') === -1 ? '' : u.slice(u.indexOf('?'))) : (u || {});
+    verCopia(claveDe(p), true);
+  };
+}
+function verCopia(k, avisarSiNo){
+  dbGet('snap', llaveSnap(k), function(r){
+    if (!r && k.indexOf('inv:') === 0 && k !== 'inv:') { verCopia('inv:', avisarSiNo); return; }
+    if (!r) { if (avisarSiNo) avisoOff('📴 Esa pantalla no está guardada en este teléfono (ábrela una vez con internet)'); else if (k !== 'agenda') verCopia('agenda', false); else verCopia('home', false); return; }
+    var f = document.getElementById('marcoOff');
+    if (!f) { document.body.innerHTML = ''; f = document.createElement('iframe'); f.id = 'marcoOff'; f.allow = 'camera; clipboard-read; clipboard-write'; document.body.appendChild(f); }
+    f.srcdoc = r.html;
+    avisoOff('📴 Sin internet · copia de las ' + horaDe(r.t) + ' · solo para ver (Material sí registra)');
+  });
+}
+function modoSinInternet(k){ OFF = true; prepararOff(); verCopia(k || 'agenda', false); }
+window.addEventListener('online', function(){ if (OFF) { OFF = false; location.reload(); } });
+// Si el sistema no responde (internet muy lento o caído), se ofrece ver la copia.
+var T_LENTO = null;
+function quitarAvisoLento(){ clearTimeout(T_LENTO); var b = document.getElementById('btnOff'); if (b) b.remove(); }
+function vigilarLento(k){
+  T_LENTO = setTimeout(function(){
+    if (SISTEMA_LISTO) return;
+    dbGet('snap', llaveSnap(k), function(r){
+      if (!r && !snapIndice()[llaveSnap('agenda')]) return;
+      var b = document.createElement('button'); b.id = 'btnOff'; b.textContent = '📴 Tarda mucho · ver la copia guardada';
+      b.style.cssText = 'position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:60;background:#7C2D12;color:#fff;border:none;border-radius:999px;padding:12px 16px;font:800 14px Arial,sans-serif;box-shadow:0 6px 18px rgba(0,0,0,.3);';
+      b.onclick = function(){ modoSinInternet(k); };
+      document.body.appendChild(b);
+    });
+  }, 12000);
+}
+
 function ultimoLugar(){
   try {
     var u = JSON.parse(lsG(K_ULT) || 'null');
@@ -109,7 +231,14 @@ function abrir(){
   var url = liga
     ? SISTEMA + '?' + liga + '&pin=' + encodeURIComponent(pin)
     : SISTEMA + (inicio === 'agenda' ? '?agenda=1&' : '?') + 'pin=' + encodeURIComponent(pin);
+  var k = claveDe(paramsDe(url.slice(url.indexOf('?'))));
+  limpiarDireccion();
+  if (navigator.onLine === false) { modoSinInternet(k); return; }
+  // ⚡ Si esta pantalla ya está guardada, el sistema solo manda el cascarón y la copia sale al instante.
+  var esQr = k.indexOf('inv:') === 0 && k !== 'inv:';
+  if (!esQr && snapIndice()[llaveSnap(k)]) url += '&shell=1';
   document.body.innerHTML = '<div class="cargando" id="carga"><img src="icon-192.png" alt=""><div>Abriendo Dentaly…</div></div>';
+  vigilarLento(k);
   var f = document.createElement('iframe');
   f.src = url;
   f.allow = 'camera; microphone; clipboard-read; clipboard-write; fullscreen';
@@ -147,7 +276,10 @@ function configurar(){
 }
 
 // Para cambiar el PIN o la pantalla de inicio: abrir la dirección con ?config
-if (location.search.indexOf('config') !== -1 || !lsG(K_PIN)) configurar(); else abrir();
+function arrancar(){ if (location.search.indexOf('config') !== -1 || !lsG(K_PIN)) configurar(); else abrir(); }
+// Si Chrome la está "precargando" (sugerencia de la barra de direcciones), no se abre nada hasta que de verdad se muestre.
+var precargando = false; try { precargando = !!document.prerendering; } catch(e){}
+if (precargando) document.addEventListener('prerenderingchange', arrancar, { once: true }); else arrancar();
 
 /* Si la app ya estaba abierta y llega una liga (QR de caja, etc.):
    el manifest dice "navigate-existing", así que el teléfono recarga la app
@@ -156,7 +288,7 @@ if (location.search.indexOf('config') !== -1 || !lsG(K_PIN)) configurar(); else 
    antes el QR traía la app al frente pero se quedaba en el calendario.) */
 if ('launchQueue' in window) {
   try {
-    var URL_ARRANQUE = location.href;
+    var URL_ARRANQUE = HREF0;
     window.launchQueue.setConsumer(function(params){
       if (!params || !params.targetURL) return;
       // Si la app se abrió (o recargó) YA con esa liga, abrir() ya la cargó: no se repite.
