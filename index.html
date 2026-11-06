@@ -146,7 +146,7 @@ window.addEventListener('message', function(e){
   if (d.dentalySnapPide && e.source) { var q = d.dentalySnapPide; dbGet('snap', llaveSnap(q.k), function(r){ try { e.source.postMessage({ dentalySnapResp: { id: q.id, html: r ? r.html : '', t: r ? r.t : 0 } }, '*'); } catch(er){} }); }
   if (d.dentalyResp && d.dentalyResp.fn) dbPut('resp', lsG(K_PIN) + '|' + d.dentalyResp.fn + '|' + d.dentalyResp.a, { r: d.dentalyResp.r, t: d.dentalyResp.t });
   if (d.dentalyListo && e.source) {
-    SISTEMA_LISTO = true; quitarAvisoLento();
+    SISTEMA_LISTO = true; quitarAvisoLento(); quitarPrevia();
     try { e.source.postMessage({ dentalyAppV: 2 }, '*'); } catch(er){}
     dbTodos('cola', function(l){ if (l.length) try { e.source.postMessage({ dentalyCola: l }, '*'); } catch(er){} });   // lo guardado sin internet
   }
@@ -196,6 +196,22 @@ function verCopia(k, avisarSiNo){
     avisoOff('📴 Sin internet · copia de las ' + horaDe(r.t) + ' · solo para ver (Material sí registra)');
   });
 }
+/* ⚡ VISTA PREVIA (2026-11-05): mientras Google contesta, se muestra YA la última copia de la pantalla
+   (se puede leer). Los toques esperan un segundo a que el sistema esté listo; luego se quita sola. */
+function vistaPrevia(k){
+  dbGet('snap', llaveSnap(k), function(r){
+    if (!r || SISTEMA_LISTO || document.getElementById('previa')) return;
+    prepararOff();
+    var f = document.createElement('iframe'); f.id = 'previa'; f.srcdoc = r.html; f.style.zIndex = '5';
+    var t = document.createElement('div'); t.id = 'tapa';
+    t.style.cssText = 'position:fixed;inset:0;z-index:6;background:transparent;';
+    t.innerHTML = '<div id="tapaChip" style="position:fixed;top:8px;left:50%;transform:translateX(-50%);background:#0B4F4A;color:#fff;border-radius:999px;padding:7px 13px;font:700 12.5px Arial,sans-serif;box-shadow:0 4px 14px rgba(0,0,0,.25);">⏳ Conectando…</div>';
+    t.onclick = function(){ var c = document.getElementById('tapaChip'); if (c) c.textContent = '⏳ Un segundo, conectando…'; };
+    document.body.appendChild(f); document.body.appendChild(t);
+    var c = document.getElementById('carga'); if (c) c.remove();
+  });
+}
+function quitarPrevia(){ setTimeout(function(){ ['previa', 'tapa'].forEach(function(id){ var x = document.getElementById(id); if (x) x.remove(); }); }, 450); }
 function modoSinInternet(k){ OFF = true; prepararOff(); verCopia(k || 'agenda', false); }
 window.addEventListener('online', function(){ if (OFF) { OFF = false; location.reload(); } });
 // Si el sistema no responde (internet muy lento o caído), se ofrece ver la copia.
@@ -239,6 +255,7 @@ function abrir(){
   if (!esQr && snapIndice()[llaveSnap(k)]) url += '&shell=1';
   document.body.innerHTML = '<div class="cargando" id="carga"><img src="icon-192.png" alt=""><div>Abriendo Dentaly…</div></div>';
   vigilarLento(k);
+  if (!esQr) vistaPrevia(k);
   var f = document.createElement('iframe');
   f.src = url;
   f.allow = 'camera; microphone; clipboard-read; clipboard-write; fullscreen';
