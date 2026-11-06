@@ -1,0 +1,10 @@
+# Dentaly es una herramienta interna: que los buscadores no la muestren.
+# (WhatsApp y Facebook si pueden leerla para la tarjeta de vista previa al compartir la liga.)
+User-agent: facebookexternalhit
+Allow: /
+
+User-agent: WhatsApp
+Allow: /
+
+User-agent: *
+Disallow: /

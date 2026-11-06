@@ -5,7 +5,22 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0B4F4A">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" href="icon-192.png">
+<link rel="icon" type="image/png" href="favicon.png">
+<meta name="description" content="Sistema del consultorio Dentaly: agenda, expedientes, cobros y material.">
+<meta name="robots" content="noindex, nofollow">
+<meta name="application-name" content="Dentaly">
+<meta name="format-detection" content="telephone=no">
+<!-- Tarjeta al compartir la liga (WhatsApp, Facebook, etc.) -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Dentaly">
+<meta property="og:title" content="Dentaly · Sistema del consultorio">
+<meta property="og:description" content="Agenda, expedientes, cobros y material del consultorio Dentaly.">
+<meta property="og:url" content="https://elernest99.github.io/dentaly/">
+<meta property="og:image" content="https://elernest99.github.io/dentaly/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:locale" content="es_MX">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -112,6 +127,38 @@ window.addEventListener('message', function(e){
   var d = e && e.data; if (!d) return;
   if (d.dentalyQuiereAvisos) botonAvisos();
   if (d.dentalyAviso) notificar(d.dentalyAviso);
+});
+/* 🔔 AVISO "SIGUIENTE PACIENTE" (2026-11-06): para las doctoras. Llega aunque la app esté cerrada (Web Push).
+   En iPhone solo funciona con la app instalada en la pantalla de inicio (iOS 16.4 o más nuevo). */
+var PUSH_KEY = 'BHO0x8sV9whi0SMCmIejjrKd2m1yjecRh1_wDVGVDjadDmKBxoUm7O3MtY4WzDfZRGutflhDX3iPF-Mf_ghByKE';
+function pushListo(){ return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window; }
+function b64uBytes(t){ t = String(t).replace(/-/g, '+').replace(/_/g, '/'); while (t.length % 4) t += '='; var r = atob(t), u = new Uint8Array(r.length); for (var i = 0; i < r.length; i++) u[i] = r.charCodeAt(i); return u; }
+function pushSuscribir(src, conBoton){
+  navigator.serviceWorker.ready.then(function(reg){
+    return reg.pushManager.getSubscription().then(function(s){ return s || reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uBytes(PUSH_KEY) }); });
+  }).then(function(sub){ try { src.postMessage({ dentalyPushSub: JSON.parse(JSON.stringify(sub)), nuevo: !!conBoton }, '*'); } catch(e){} })
+    .catch(function(er){ if (conBoton) alert('No se pudieron activar los avisos: ' + (er && er.message ? er.message : er)); });
+}
+function botonPush(src, doctor){
+  if (document.getElementById('btnPush')) return;
+  var b = document.createElement('button');
+  b.id = 'btnPush'; b.textContent = '🔔 Avisarme de mi siguiente paciente';
+  b.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom));z-index:99;background:#0B4F4A;color:#fff;border:none;border-radius:999px;padding:13px 18px;font:800 14px Arial,sans-serif;box-shadow:0 6px 18px rgba(0,0,0,.3);white-space:nowrap;';
+  var x = document.createElement('span'); x.textContent = '  ✕'; x.style.cssText = 'opacity:.7;margin-left:6px;';
+  x.onclick = function(ev){ ev.stopPropagation(); b.remove(); lsS('dentaly_push_no', String(Date.now())); };
+  b.appendChild(x);
+  b.onclick = function(){ Notification.requestPermission().then(function(p){ b.remove(); if (p === 'granted') pushSuscribir(src, true); }); };
+  document.body.appendChild(b);
+}
+window.addEventListener('message', function(e){
+  var d = e && e.data; if (!d) return;
+  if (d.dentalyQuierePush && pushListo()) {
+    if (Notification.permission === 'granted') pushSuscribir(e.source, false);   // ya aceptó: se mantiene al día (sin preguntar)
+    else if (Notification.permission === 'default' && Date.now() - Number(lsG('dentaly_push_no') || 0) > 3 * 864e5) botonPush(e.source, d.dentalyQuierePush.doctor);
+  }
+  if (d.dentalyPushId) {
+    try { caches.open('dentaly-cfg').then(function(c){ return c.put('aviso-id', new Response(String(d.dentalyPushId))); }); } catch(er){}
+  }
 });
 
 /* ═══ ⚡ COPIAS EN EL TELÉFONO (IndexedDB) ═══ */
