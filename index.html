@@ -127,7 +127,7 @@ function paramsDe(q){ var p = {}; String(q || '').replace(/^[?]/, '').split('&')
 // Igual que en el sistema: qué pantalla es cada liga.
 function claveDe(p){
   if (p.id) return 'f:' + p.id; if (p.agenda) return 'agenda'; if (p.rxsubir) return 'rx'; if (p.mi) return 'mi:' + p.mi + (p.mes ? ':' + p.mes : '');
-  if (p.caja) return 'caja:' + p.caja; if ('inv' in p) return 'inv:' + p.inv; if ('banco' in p) return 'banco'; if ('fact' in p) return 'fact'; if ('pedido' in p) return 'pedido';
+  if (p.caja) return 'caja:' + p.caja; if ('inv' in p) return 'inv:' + p.inv; if ('banco' in p) return 'banco'; if ('fact' in p) return 'fact'; if ('pedido' in p) return 'pedido'; if (p.ultimo === 'etiquetas') return 'ultimo'; if ('etiquetas' in p) return 'etiquetas'; if ('inventario' in p) return 'inventario';
   if (p.orden) return 'orden:' + p.orden; if (p.accion || p.pac) return 'home:x'; return 'home';
 }
 function llaveSnap(k){ return lsG(K_PIN) + '|' + k; }
