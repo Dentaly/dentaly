@@ -288,6 +288,70 @@ function ultimoLugar(){
   } catch (e) { return ''; }
 }
 
+/* ⚡ (2026-11-07) APP RÁPIDA. Antes, al abrir, se cargaba la página de Google (lo más lento: 2-5 s) y adentro el sistema.
+   Ahora el "cascarón" del sistema se guarda EN ESTE TELÉFONO y abre al instante; las pantallas y los datos se piden
+   directo al sistema (sin la página de Google en medio). Si algo falla, se usa la forma de siempre.
+   ?clasico=1 en la dirección = volver a la forma de siempre en este teléfono; ?rapido=1 = volver a la rápida. */
+var K_MODO = 'dentaly_modo';
+try { if (location.search.indexOf('clasico=1') !== -1) lsS(K_MODO, 'clasico'); if (location.search.indexOf('rapido=1') !== -1) lsS(K_MODO, ''); } catch(e){}
+function puedeRapido(){ try { return lsG(K_MODO) !== 'clasico' && typeof Proxy !== 'undefined' && 'fetch' in window && !!window.indexedDB; } catch(e){ return false; } }
+function apiLlamar(fn, args){
+  return fetch(SISTEMA, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ api: 'dentaly', fn: fn, args: args || [], pin: lsG(K_PIN) }), redirect: 'follow', credentials: 'omit' })
+    .then(function(r){ if (!r.ok) throw new Error('NetworkError ' + r.status); return r.json(); })
+    .then(function(j){ if (!j || !j.ok) throw new Error((j && j.e) || 'Error del sistema'); return j.r; });
+}
+/* Lo que va dentro del cascarón: un google.script.run que llama directo al sistema por internet. */
+function polyfillDentaly(cfg){
+  var EXEC = cfg.exec, PIN = cfg.pin, T = window.top;
+  window.__dentalyP0 = cfg.p0;
+  function llamar(fn, args){
+    return fetch(EXEC, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ api: 'dentaly', fn: fn, args: args, pin: PIN }), redirect: 'follow', credentials: 'omit' })
+      .then(function(r){ if (!r.ok) throw new Error('NetworkError ' + r.status); return r.json(); })
+      .then(function(j){ if (!j || !j.ok) throw new Error((j && j.e) || 'Error del sistema'); return j.r; });
+  }
+  function runner(ok, mal, uo){
+    return new Proxy({}, { get: function(t, k){
+      if (k === 'withSuccessHandler') return function(f){ return runner(f, mal, uo); };
+      if (k === 'withFailureHandler') return function(f){ return runner(ok, f, uo); };
+      if (k === 'withUserObject') return function(o){ return runner(ok, mal, o); };
+      if (typeof k !== 'string' || k === 'then') return undefined;
+      return function(){ var a = Array.prototype.slice.call(arguments); llamar(k, a).then(function(v){ if (ok) ok(v, uo); }, function(e){ if (mal) mal(e, uo); else if (window.console) console.error(k, e); }); };
+    } });
+  }
+  var hist = { _h: null,
+    push: function(st, p){ try { T.history.pushState({ dentalyP: p || {} }, ''); } catch(e){} },
+    replace: function(st, p){ try { T.history.replaceState({ dentalyP: p || {} }, ''); } catch(e){} },
+    setChangeHandler: function(f){ hist._h = f; } };
+  try { T.addEventListener('popstate', function(e){ var p = e.state && e.state.dentalyP; if (p && hist._h) hist._h({ location: { parameter: p } }); }); } catch(e){}
+  window.google = { script: { history: hist, url: { getLocation: function(cb){ if (cb) cb({ parameter: cfg.p0 || {}, hash: '' }); } },
+    host: { close: function(){}, setHeight: function(){}, setWidth: function(){}, origin: location.origin, editor: { focus: function(){} } } } };
+  Object.defineProperty(window.google.script, 'run', { get: function(){ return runner(null, null, undefined); } });
+}
+function abrirRapido(p, k, alFallar){
+  var pin = lsG(K_PIN), key = 'SHELL|' + pin, montado = false, listo = false;
+  var cfg = { exec: SISTEMA, pin: pin, p0: p };
+  function montar(html){
+    if (montado) return; montado = true;
+    var iny = '<script>(' + polyfillDentaly.toString() + ')(' + JSON.stringify(cfg).replace(/</g, '\u003c') + ');<\/script>';
+    var i = html.search(/<head[^>]*>/i);
+    html = i === -1 ? iny + html : html.slice(0, html.indexOf('>', i) + 1) + iny + html.slice(html.indexOf('>', i) + 1);
+    var f = document.createElement('iframe');
+    f.id = 'sistema'; f.allow = 'camera; microphone; clipboard-read; clipboard-write; fullscreen';
+    f.onload = function(){ var c = document.getElementById('carga'); if (c) { c.style.opacity = '0'; setTimeout(function(){ c.remove(); }, 300); } };
+    f.srcdoc = html;
+    document.body.insertBefore(f, document.body.firstChild);
+    // Si en 15 s no arrancó, se usa la forma de siempre (y se avisa una sola vez en la consola).
+    setTimeout(function(){ if (!SISTEMA_LISTO) { try { f.remove(); } catch(e){} alFallar(); } }, 15000);
+  }
+  dbGet('snap', key, function(v){
+    if (v && v.html) montar(v.html);
+    // Siempre se trae el cascarón nuevo (por si se actualizó el sistema): se usa la próxima vez.
+    apiLlamar('odbAppShellHtml', [p]).then(function(r){
+      if (r && r.html) { dbPut('snap', key, { html: r.html, t: Date.now() }); if (!montado) montar(r.html); }
+    }).catch(function(){ if (!montado) alFallar(); });
+  });
+}
+
 function abrir(){
   var pin = lsG(K_PIN), inicio = lsG(K_INICIO) || 'agenda';
   var liga = destinoDeLiga() || ultimoLugar();
@@ -303,6 +367,14 @@ function abrir(){
   document.body.innerHTML = '<div class="cargando" id="carga"><img src="icon-192.png" alt=""><div>Abriendo Dentaly…</div></div>';
   vigilarLento(k);
   if (!esQr) vistaPrevia(k);
+  var clasico = function(){
+    var f = document.createElement('iframe');
+    f.src = url;
+    f.allow = 'camera; microphone; clipboard-read; clipboard-write; fullscreen';
+    f.onload = function(){ var c = document.getElementById('carga'); if (c) { c.style.opacity = '0'; setTimeout(function(){ c.remove(); }, 300); } };
+    document.body.insertBefore(f, document.body.firstChild);
+  };
+  if (puedeRapido()) { var p = paramsDe(url.slice(url.indexOf('?'))); delete p.shell; abrirRapido(p, k, clasico); return; }
   var f = document.createElement('iframe');
   f.src = url;
   f.allow = 'camera; microphone; clipboard-read; clipboard-write; fullscreen';
