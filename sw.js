@@ -1,18 +1,32 @@
 /* Programa de fondo de la app Dentaly: guarda el "cascarón" (esta pantalla y
    el ícono) para que abra al instante. Los datos siempre vienen del sistema. */
-var CACHE = 'dentaly-app-v13';
+var CACHE = 'dentaly-app-v15';
 var ARCHIVOS = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png', 'favicon.png'];
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(ARCHIVOS); }));
   self.skipWaiting();
 });
 self.addEventListener('activate', function (e) {
-  e.waitUntil(caches.keys().then(function (ks) { return Promise.all(ks.filter(function (k) { return k !== CACHE && k !== 'dentaly-cfg'; }).map(function (k) { return caches.delete(k); })); }));
+  e.waitUntil(caches.keys().then(function (ks) { return Promise.all(ks.filter(function (k) { return k !== CACHE && k !== 'dentaly-cfg' && k !== 'dentaly-compartidos'; }).map(function (k) { return caches.delete(k); })); }));
   self.clients.claim();
 });
 self.addEventListener('fetch', function (e) {
   var u = new URL(e.request.url);
   if (u.origin !== location.origin) return;   // el sistema de Google no se toca
+  // 📤 (2026-11-07) Compartir → Dentaly (fotos desde la galería): se guardan aquí y se abre "Subir RX".
+  if (e.request.method === 'POST' && /[/]compartir$/.test(u.pathname)) {
+    e.respondWith(e.request.formData().then(function (fd) {
+      var fs = fd.getAll('fotos').filter(function (f) { return f && f.size; });
+      return caches.open('dentaly-compartidos').then(function (c) {
+        return Promise.all(fs.map(function (f, i) {
+          return c.put('compartido/' + Date.now() + '-' + i, new Response(f, { headers: { 'Content-Type': f.type || 'image/jpeg', 'X-Nombre': encodeURIComponent(f.name || ('foto' + i + '.jpg')) } }));
+        }));
+      }).then(function () { return Response.redirect('./?rxsubir=1&compartido=' + fs.length, 303); });
+    }).catch(function () { return Response.redirect('./?rxsubir=1', 303); }));
+    return;
+  }
+  if (e.request.method !== 'GET') return;
+  if (/version[.]json$/.test(u.pathname)) return;   // la versión siempre se pregunta a internet
   // ⚡ (2026-11-05) Primero lo guardado (abre al instante, aun sin internet) y por detrás se actualiza
   // para la siguiente vez.
   var red = fetch(e.request).then(function (r) {

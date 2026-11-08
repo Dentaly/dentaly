@@ -295,6 +295,50 @@ function ultimoLugar(){
   } catch (e) { return ''; }
 }
 
+
+/* ═══ (2026-11-07) Mejoras gratis de GitHub ═══════════════════════════════════════════════════ */
+var APP_V = '15';
+/* 🆕 Aviso de versión nueva: se pregunta a GitHub (version.json) al abrir y cada 30 min. */
+function bannerNuevo(txt){
+  if (document.getElementById('bNuevo')) return;
+  var b = document.createElement('div'); b.id = 'bNuevo';
+  b.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:14px;z-index:9999;display:flex;align-items:center;gap:10px;background:#0B4F4A;color:#fff;border-radius:999px;padding:9px 10px 9px 16px;font:700 13.5px Arial,sans-serif;box-shadow:0 6px 18px rgba(0,0,0,.28);max-width:92vw;';
+  b.innerHTML = '<span>✨ ' + (txt || 'Hay una versión nueva de Dentaly') + '</span><button id="bNuevoSi" style="border:0;background:#fff;color:#0B4F4A;border-radius:999px;padding:7px 13px;font:800 13px Arial,sans-serif;cursor:pointer;">Actualizar</button><span id="bNuevoNo" style="cursor:pointer;opacity:.7;padding:0 4px;">✕</span>';
+  document.body.appendChild(b);
+  document.getElementById('bNuevoNo').onclick = function(){ b.remove(); };
+  document.getElementById('bNuevoSi').onclick = function(){
+    this.textContent = '⏳';
+    var fin = function(){ location.reload(); };
+    try {
+      caches.keys().then(function(ks){ return Promise.all(ks.filter(function(k){ return k.indexOf('dentaly-app-') === 0; }).map(function(k){ return caches.delete(k); })); })
+        .then(function(){ return navigator.serviceWorker && navigator.serviceWorker.getRegistration ? navigator.serviceWorker.getRegistration().then(function(r){ return r && r.update(); }) : null; })
+        .then(fin, fin);
+    } catch(e){ fin(); }
+  };
+}
+function revisarVersion(){
+  try { fetch('version.json?t=' + Date.now(), { cache: 'no-store' }).then(function(r){ return r.ok ? r.json() : null; }).then(function(j){ if (j && j.v && String(j.v) !== APP_V) bannerNuevo(); }).catch(function(){}); } catch(e){}
+}
+setTimeout(revisarVersion, 4000); setInterval(revisarVersion, 30 * 60000);
+/* 🔴 Número en el ícono: citas por confirmar (hoy y mañana). */
+function ponerGlobito(){
+  if (!('setAppBadge' in navigator) || !lsG(K_PIN)) return;
+  try { apiLlamar('odbBadge', [lsG(K_PIN)]).then(function(r){ var n = Number(r && r.n) || 0; if (n > 0) navigator.setAppBadge(n); else navigator.clearAppBadge(); }).catch(function(){}); } catch(e){}
+}
+setTimeout(ponerGlobito, 8000); setInterval(ponerGlobito, 10 * 60000);
+document.addEventListener('visibilitychange', function(){ if (document.visibilityState === 'visible') ponerGlobito(); });
+/* 📤 Fotos compartidas (Compartir → Dentaly): "Subir RX" las pide y aquí se le mandan. */
+window.addEventListener('message', function(e){
+  var d = e && e.data; if (!d || !d.dentalyCompartidosPide || !e.source || !window.caches) return;
+  caches.open('dentaly-compartidos').then(function(c){
+    return c.keys().then(function(ks){
+      if (!ks.length) return;
+      return Promise.all(ks.map(function(k){ return c.match(k).then(function(r){ return r.blob().then(function(bl){ var n = decodeURIComponent(r.headers.get('X-Nombre') || 'foto.jpg'); return new File([bl], n, { type: bl.type || 'image/jpeg' }); }); }); }))
+        .then(function(fs){ try { e.source.postMessage({ dentalyCompartidos: fs }, '*'); } catch(er){} return Promise.all(ks.map(function(k){ return c.delete(k); })); });
+    });
+  }).catch(function(){});
+});
+
 /* ⚡ (2026-11-07) APP RÁPIDA. Antes, al abrir, se cargaba la página de Google (lo más lento: 2-5 s) y adentro el sistema.
    Ahora el "cascarón" del sistema se guarda EN ESTE TELÉFONO y abre al instante; las pantallas y los datos se piden
    directo al sistema (sin la página de Google en medio). Si algo falla, se usa la forma de siempre.
@@ -354,7 +398,11 @@ function abrirRapido(p, k, alFallar){
     if (v && v.html) montar(v.html);
     // Siempre se trae el cascarón nuevo (por si se actualizó el sistema): se usa la próxima vez.
     apiLlamar('odbAppShellHtml', [p]).then(function(r){
-      if (r && r.html) { dbPut('snap', key, { html: r.html, t: Date.now() }); if (!montado) montar(r.html); }
+      if (r && r.html) {
+        var cambio = v && v.html && montado && v.html.length !== r.html.length;
+        dbPut('snap', key, { html: r.html, t: Date.now() }); if (!montado) montar(r.html);
+        if (cambio) bannerNuevo('El sistema se actualizó');
+      }
     }).catch(function(){ if (!montado) alFallar(); });
   });
 }

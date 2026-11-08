@@ -47,26 +47,42 @@
     {
       "name": "Agenda",
       "short_name": "Agenda",
-      "description": "Abrir la agenda",
+      "description": "Las citas de hoy",
       "url": "./?agenda=1",
       "icons": [
         {
-          "src": "icon-192.png",
+          "src": "sc-agenda.png",
           "sizes": "192x192",
-          "type": "image/png"
+          "type": "image/png",
+          "purpose": "any"
         }
       ]
     },
     {
-      "name": "Material",
-      "short_name": "Material",
-      "description": "Escanear o buscar material",
+      "name": "Nueva cita",
+      "short_name": "Nueva cita",
+      "description": "Agendar a un paciente",
+      "url": "./?accion=cita",
+      "icons": [
+        {
+          "src": "sc-cita.png",
+          "sizes": "192x192",
+          "type": "image/png",
+          "purpose": "any"
+        }
+      ]
+    },
+    {
+      "name": "Escanear material",
+      "short_name": "Escanear",
+      "description": "Saqué o llegó material",
       "url": "./?inv=",
       "icons": [
         {
-          "src": "icon-192.png",
+          "src": "sc-escanear.png",
           "sizes": "192x192",
-          "type": "image/png"
+          "type": "image/png",
+          "purpose": "any"
         }
       ]
     },
@@ -74,14 +90,32 @@
       "name": "Inicio",
       "short_name": "Inicio",
       "description": "Pendientes del día",
-      "url": "./",
+      "url": "./?inicio=1",
       "icons": [
         {
-          "src": "icon-192.png",
+          "src": "sc-inicio.png",
           "sizes": "192x192",
-          "type": "image/png"
+          "type": "image/png",
+          "purpose": "any"
         }
       ]
     }
-  ]
+  ],
+  "share_target": {
+    "action": "./compartir",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "titulo",
+      "text": "texto",
+      "files": [
+        {
+          "name": "fotos",
+          "accept": [
+            "image/*"
+          ]
+        }
+      ]
+    }
+  }
 }
