@@ -111,11 +111,18 @@ window.addEventListener('message', function(e){
    aunque esté en otra ventana. Primero hay que activarlos con el botón 🔔. */
 function botonAvisos(){
   if (!('Notification' in window) || Notification.permission !== 'default' || document.getElementById('btnAvisos')) return;
-  var b = document.createElement('button');
-  b.id = 'btnAvisos'; b.textContent = '🔔 Activar avisos';
-  b.style.cssText = 'position:fixed;right:12px;bottom:150px;z-index:99;background:#5B21B6;color:#fff;border:none;border-radius:999px;padding:12px 16px;font:800 14px Arial,sans-serif;box-shadow:0 4px 14px rgba(0,0,0,.3);';
-  b.onclick = function(){ Notification.requestPermission().then(function(){ b.remove(); }); };
+  // (2026-11-07) Ya no estorba: chiquito abajo a la izquierda, con ✕ para esconderlo 2 semanas.
+  // En iPhone solo funciona con la app instalada en inicio: en Safari normal no se muestra.
+  var ios = /iPhone|iPad|iPod/.test(navigator.userAgent), instalada = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone;
+  if (ios && !instalada) return;
+  try { var no = Number(lsG('dentaly_avisos_no') || 0); if (no && Date.now() - no < 14 * 864e5) return; } catch(e){}
+  var b = document.createElement('div');
+  b.id = 'btnAvisos';
+  b.style.cssText = 'position:fixed;left:10px;bottom:12px;z-index:99;display:flex;align-items:center;gap:2px;background:#5B21B6;color:#fff;border-radius:999px;font:700 12px Arial,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.25);opacity:.92;';
+  b.innerHTML = '<span id="btnAvSi" style="padding:7px 4px 7px 11px;cursor:pointer;">🔔 Avisos</span><span id="btnAvNo" style="padding:7px 10px 7px 6px;cursor:pointer;opacity:.75;">✕</span>';
   document.body.appendChild(b);
+  document.getElementById('btnAvSi').onclick = function(){ Notification.requestPermission().then(function(){ b.remove(); }); };
+  document.getElementById('btnAvNo').onclick = function(){ lsS('dentaly_avisos_no', String(Date.now())); b.remove(); };
 }
 function notificar(t){
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
