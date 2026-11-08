@@ -1,6 +1,6 @@
 /* Programa de fondo de la app Dentaly: guarda el "cascarón" (esta pantalla y
    el ícono) para que abra al instante. Los datos siempre vienen del sistema. */
-var CACHE = 'dentaly-app-v17';
+var CACHE = 'dentaly-app-v18';
 var ARCHIVOS = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png', 'favicon.png'];
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(ARCHIVOS); }));
