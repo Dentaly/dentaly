@@ -180,8 +180,12 @@ function dbTodos(st, cb){ conDB(function(){ if (!DB) { cb([]); return; } try { v
 function paramsDe(q){ var p = {}; String(q || '').replace(/^[?]/, '').split('&').forEach(function(kv){ if (!kv) return; var i = kv.indexOf('='); var k = decodeURIComponent((i === -1 ? kv : kv.slice(0, i)).replace(/[+]/g, ' ')); if (k) p[k] = i === -1 ? '' : decodeURIComponent(kv.slice(i + 1).replace(/[+]/g, ' ')); }); return p; }
 // Igual que en el sistema: qué pantalla es cada liga.
 function claveDe(p){
-  if (p.id) return 'f:' + p.id; if (p.agenda) return 'agenda'; if (p.rxsubir) return 'rx'; if (p.mi) return 'mi:' + p.mi + (p.mes ? ':' + p.mes : '');
+  if (p.paso && !p.orden) return 'paso:' + (p.id || ''); if (p.id) return 'f:' + p.id; if (p.agenda) return 'agenda'; if (p.rxsubir) return 'rx'; if (p.mi) return 'mi:' + p.mi + (p.mes ? ':' + p.mes : '');
   if (p.caja) return 'caja:' + p.caja; if ('inv' in p) return 'inv:' + p.inv; if ('banco' in p) return 'banco'; if ('fact' in p) return 'fact'; if ('bit' in p) return 'bit'; if (p.rxetq) return 'rxetq'; if ('pedido' in p) return 'pedido'; if (p.ultimo === 'etiquetas') return 'ultimo'; if ('etiquetas' in p) return 'etiquetas'; if ('inventario' in p) return 'inventario';
+  if ('margen' in p) return 'margen'; if ('factrevisar' in p) return 'factrevisar';
+  // (v20) Las páginas nuevas también se pueden ver sin internet (antes caían en el Inicio).
+  var NUEVAS = ['pendientes', 'metricas', 'catalogo', 'personal', 'cambioanio', 'llego', 'sillones', 'robot', 'surtido'];
+  for (var i = 0; i < NUEVAS.length; i++) if (NUEVAS[i] in p) return NUEVAS[i];
   if (p.orden) return 'orden:' + p.orden; if (p.accion || p.pac) return 'home:x'; return 'home';
 }
 function llaveSnap(k){ return lsG(K_PIN) + '|' + k; }
@@ -190,7 +194,7 @@ function snapIndice(){ try { return JSON.parse(lsG(K_IDX) || '{}'); } catch(e){ 
 function snapGuardar(k, html, t){
   var idx = snapIndice(), ll = llaveSnap(k); idx[ll] = t || Date.now(); dbPut('snap', ll, { html: html, t: t || Date.now() });
   var ks = Object.keys(idx).sort(function(a, b){ return idx[a] - idx[b]; });
-  while (ks.length > 60) { var v = ks.shift(); delete idx[v]; dbDel('snap', v); }   // máximo 60 pantallas guardadas
+  while (ks.length > 100) { var v = ks.shift(); delete idx[v]; dbDel('snap', v); }   // (v20) máximo 100: ahora se guarda TODA la web de cada PIN
   lsS(K_IDX, JSON.stringify(idx));
 }
 var SISTEMA_LISTO = false;
@@ -297,7 +301,7 @@ function ultimoLugar(){
 
 
 /* ═══ (2026-11-07) Mejoras gratis de GitHub ═══════════════════════════════════════════════════ */
-var APP_V = '19';
+var APP_V = '20';
 /* 🆕 Aviso de versión nueva: se pregunta a GitHub (version.json) al abrir y cada 30 min. */
 function bannerNuevo(txt, ver){
   if (document.getElementById('bNuevo')) return;
