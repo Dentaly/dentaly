@@ -28,23 +28,27 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>Dentaly</title>
 <style>
-  :root { --verde:#0B4F4A; --fondo:#F6F8F7; --naranja:#B45309; }
-  html, body { margin:0; height:100%; background:var(--fondo); font-family: Arial, Helvetica, sans-serif; }
+  :root { --verde:#0B4F4A; --verde2:#0F665F; --fondo:#F6F8F7; --naranja:#B45309; }
+  html, body { margin:0; height:100%; background:var(--fondo); font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing:antialiased; }
   iframe { position:fixed; inset:0; width:100%; height:100%; border:0; background:var(--fondo); }
-  .pantalla { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; padding:20px; box-sizing:border-box; }
-  .caja { background:#fff; border:1px solid #E3ECE9; border-radius:22px; padding:26px 20px; width:100%; max-width:340px; text-align:center; box-shadow:0 10px 28px rgba(11,79,74,.12); }
-  .caja img { width:72px; height:72px; border-radius:18px; }
-  h1 { color:var(--verde); font-size:20px; margin:10px 0 4px; }
-  p { color:#717171; font-size:13px; margin:0 0 16px; }
-  input { font-size:22px; letter-spacing:6px; text-align:center; width:100%; box-sizing:border-box; padding:12px; border:1px solid #CBDDD8; border-radius:14px; background:#F7F7F7; outline:none; }
+  @keyframes dyFade { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+  .pantalla { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; padding:20px; box-sizing:border-box; background:linear-gradient(160deg, #F6F8F7 0%, #EAF4F2 100%); }
+  .caja { background:#fff; border:1px solid #E2EAE7; border-radius:22px; padding:28px 22px; width:100%; max-width:350px; text-align:center; box-shadow:0 16px 40px -10px rgba(11,79,74,.14), 0 2px 6px rgba(15,23,42,.04); animation:dyFade .25s ease-out; }
+  .caja img { width:72px; height:72px; border-radius:18px; box-shadow:0 4px 12px rgba(11,79,74,.14); }
+  h1 { color:var(--verde); font-size:21px; font-weight:800; letter-spacing:-.02em; margin:12px 0 6px; }
+  p { color:#64748B; font-size:13.5px; line-height:1.45; margin:0 0 18px; }
+  input { font-size:22px; letter-spacing:8px; text-align:center; width:100%; box-sizing:border-box; padding:13px; border:1.5px solid #D6E4E0; border-radius:14px; background:#F9FBFA; color:#111827; outline:none; transition:border-color .15s, box-shadow .15s, background .15s; }
+  input:focus { border-color:var(--verde); background:#fff; box-shadow:0 0 0 3px rgba(11,79,74,.12); }
   .ops { display:flex; gap:8px; margin:14px 0 4px; }
-  .ops button { flex:1; padding:12px 6px; border-radius:14px; border:1px solid #CBDDD8; background:#fff; color:var(--verde); font-weight:700; font-size:14px; }
+  .ops button { flex:1; padding:11px 6px; border-radius:12px; border:1.5px solid #D6E4E0; background:#fff; color:var(--verde); font-weight:700; font-size:13.5px; cursor:pointer; transition:all .15s; }
   .ops button.on { background:var(--verde); color:#fff; border-color:var(--verde); }
-  .go { width:100%; margin-top:12px; padding:14px; border:none; border-radius:999px; background:var(--naranja); color:#fff; font-size:16px; font-weight:800; }
-  .cargando { position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; color:var(--verde); font-weight:700; background:var(--fondo); transition:opacity .3s; }
+  .go { width:100%; margin-top:14px; padding:14px; border:none; border-radius:14px; background:var(--verde); color:#fff; font-size:15.5px; font-weight:700; cursor:pointer; box-shadow:0 4px 12px rgba(11,79,74,.22); transition:background .15s, transform .12s; }
+  .go:hover { background:var(--verde2); }
+  .go:active { transform:scale(.98); }
+  .cargando { position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; color:var(--verde); font-weight:700; font-size:15px; background:linear-gradient(160deg, #F6F8F7 0%, #EAF4F2 100%); transition:opacity .3s; }
   .ios { text-align:left; background:#FFF7ED; border:1px solid #FED7AA; color:#7C2D12; border-radius:14px; padding:10px 12px; font-size:13px; line-height:1.45; margin:0 0 14px; }
   .ios b { color:#7C2D12; }
-  .cargando img { width:84px; height:84px; border-radius:22px; }
+  .cargando img { width:84px; height:84px; border-radius:22px; box-shadow:0 8px 24px rgba(11,79,74,.16); animation:dyFade .3s ease-out; }
 </style>
 </head>
 <body>
@@ -184,7 +188,8 @@ function claveDe(p){
   if (p.caja) return 'caja:' + p.caja; if ('inv' in p) return 'inv:' + p.inv; if ('banco' in p) return 'banco'; if ('fact' in p) return 'fact'; if ('bit' in p) return 'bit'; if (p.rxetq) return 'rxetq'; if ('pedido' in p) return 'pedido'; if (p.ultimo === 'etiquetas') return 'ultimo'; if ('etiquetas' in p) return 'etiquetas'; if ('inventario' in p) return 'inventario';
   if ('margen' in p) return 'margen'; if ('factrevisar' in p) return 'factrevisar';
   // (v20) Las páginas nuevas también se pueden ver sin internet (antes caían en el Inicio).
-  var NUEVAS = ['pendientes', 'metricas', 'catalogo', 'personal', 'cambioanio', 'llego', 'sillones', 'robot', 'surtido'];
+  // (v21) + Mi día: igual que en el sistema.
+  var NUEVAS = ['pendientes', 'metricas', 'catalogo', 'personal', 'cambioanio', 'llego', 'sillones', 'robot', 'surtido', 'midia'];
   for (var i = 0; i < NUEVAS.length; i++) if (NUEVAS[i] in p) return NUEVAS[i];
   if (p.orden) return 'orden:' + p.orden; if (p.accion || p.pac) return 'home:x'; return 'home';
 }
@@ -269,7 +274,7 @@ function vistaPrevia(k){
     var c = document.getElementById('carga'); if (c) c.remove();
   });
 }
-function quitarPrevia(){ setTimeout(function(){ ['previa', 'tapa'].forEach(function(id){ var x = document.getElementById(id); if (x) x.remove(); }); }, 450); }
+function quitarPrevia(){ setTimeout(function(){ ['previa', 'tapa'].forEach(function(id){ var x = document.getElementById(id); if (!x) return; x.style.transition = 'opacity .18s ease'; x.style.opacity = '0'; x.style.pointerEvents = 'none'; setTimeout(function(){ if (x.parentNode) x.remove(); }, 200); }); }, 350); }
 function modoSinInternet(k){ OFF = true; prepararOff(); verCopia(k || 'agenda', false); }
 window.addEventListener('online', function(){ if (OFF) { OFF = false; location.reload(); } });
 // Si el sistema no responde (internet muy lento o caído), se ofrece ver la copia.
@@ -301,7 +306,7 @@ function ultimoLugar(){
 
 
 /* ═══ (2026-11-07) Mejoras gratis de GitHub ═══════════════════════════════════════════════════ */
-var APP_V = '20';
+var APP_V = '22';
 /* 🆕 Aviso de versión nueva: se pregunta a GitHub (version.json) al abrir y cada 30 min. */
 function bannerNuevo(txt, ver){
   if (document.getElementById('bNuevo')) return;
@@ -412,6 +417,8 @@ function polyfillDentaly(cfg){
     replace: function(st, p){ try { T.history.replaceState({ dentalyP: p || {} }, ''); } catch(e){} },
     setChangeHandler: function(f){ hist._h = f; } };
   try { T.addEventListener('popstate', function(e){ var p = e.state && e.state.dentalyP; if (p && hist._h) hist._h({ location: { parameter: p } }); }); } catch(e){}
+  // (v21) La primera pantalla también queda marcada: así «atrás» cierra el visor de fotos aunque la ficha haya sido lo primero que se abrió.
+  try { if (!T.history.state || !T.history.state.dentalyP) T.history.replaceState({ dentalyP: cfg.p0 || {} }, ''); } catch(e){}
   window.google = { script: { history: hist, url: { getLocation: function(cb){ if (cb) cb({ parameter: cfg.p0 || {}, hash: '' }); } },
     host: { close: function(){}, setHeight: function(){}, setWidth: function(){}, origin: location.origin, editor: { focus: function(){} } } } };
   Object.defineProperty(window.google.script, 'run', { get: function(){ return runner(null, null, undefined); } });
