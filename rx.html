@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex">
+<title>Receta · Dentaly</title>
+<style>body{font:15px system-ui,sans-serif;color:#0B4F4A;text-align:center;padding:48px 20px}</style>
+</head>
+<body>
+<p id="m">🖨️ Preparando la impresión…</p>
+<script>
+/* 🖨️ Dentaly (26/nov/2026): Chrome manda aquí la receta o el reporte, Edge (escondido) lo imprime solo
+   en la EPSON y esta pestaña se cierra sola. La receta se pide al sistema con la clave de un solo uso. */
+var SISTEMA = 'https://script.google.com/macros/s/AKfycbwExKBacg6rF_7T1fQddk8YhgOCHolOXoD2JGw13KIHwdKGHHvWK9pzbGlMj1mmb9Wchw/exec';
+function cerrar(){ try { window.close(); } catch (e) {} }
+function aviso(t){ document.getElementById('m').textContent = t; setTimeout(cerrar, 20000); }
+var q = new URLSearchParams(location.search), k = q.get('k') || '', pin = q.get('pin') || '';
+if (!k) { aviso('Falta la clave de la receta.'); }
+else {
+  fetch(SISTEMA, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ api: 'dentaly', fn: 'odbRxHtml', args: [pin, k], pin: pin }), redirect: 'follow', credentials: 'omit' })
+    .then(function(r){ if (!r.ok) throw new Error('Sin conexión (' + r.status + ')'); return r.json(); })
+    .then(function(j){
+      if (!j || !j.ok) throw new Error((j && j.e) || 'Error del sistema');
+      var cierre = '<scr' + 'ipt>window.onafterprint=function(){setTimeout(function(){try{window.close();}catch(e){}},1500);};' +
+        'setTimeout(function(){try{window.close();}catch(e){}},20000);</scr' + 'ipt>';
+      var h = String(j.r.html || '');
+      h = /<\/body>/i.test(h) ? h.replace(/<\/body>/i, cierre + '</body>') : h + cierre;
+      document.open(); document.write(h); document.close();
+    })
+    .catch(function(e){ aviso('No se pudo imprimir: ' + (e && e.message ? e.message : e)); });
+}
+</script>
+</body>
+</html>
