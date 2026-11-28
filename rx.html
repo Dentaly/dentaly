@@ -3,18 +3,49 @@
 <head>
 <meta charset="utf-8">
 <meta name="robots" content="noindex">
-<title>Receta · Dentaly</title>
+<title>Impresión · Dentaly</title>
 <style>body{font:15px system-ui,sans-serif;color:#0B4F4A;text-align:center;padding:48px 20px}</style>
 </head>
 <body>
 <p id="m">🖨️ Preparando la impresión…</p>
 <script>
 /* 🖨️ Dentaly (26/nov/2026): Chrome manda aquí la receta o el reporte, Edge (escondido) lo imprime solo
-   en la EPSON y esta pestaña se cierra sola. La receta se pide al sistema con la clave de un solo uso. */
+   en la EPSON y esta pestaña se cierra sola. La receta se pide al sistema con la clave de un solo uso.
+   (28/nov/2026) &hojas=impares | pares | pares-rev | 2,5-7 → se arma en hojas (Paged.js) y solo se imprimen esas. */
 var SISTEMA = 'https://script.google.com/macros/s/AKfycbwExKBacg6rF_7T1fQddk8YhgOCHolOXoD2JGw13KIHwdKGHHvWK9pzbGlMj1mmb9Wchw/exec';
+var PAGED = 'https://cdn.jsdelivr.net/npm/pagedjs@0.4.3/dist/paged.polyfill.min.js';
 function cerrar(){ try { window.close(); } catch (e) {} }
 function aviso(t){ document.getElementById('m').textContent = t; setTimeout(cerrar, 20000); }
-var q = new URLSearchParams(location.search), k = q.get('k') || '', pin = q.get('pin') || '';
+var q = new URLSearchParams(location.search), k = q.get('k') || '', pin = q.get('pin') || '', hojas = (q.get('hojas') || '').trim();
+
+/* Qué hojas (1, 2, 3…) se quedan, en el orden en que se imprimen. */
+function hojasElegidas(txt, n){
+  var todas = []; for (var i = 1; i <= n; i++) todas.push(i);
+  if (txt === 'impares') return todas.filter(function (x) { return x % 2 === 1; });
+  if (txt === 'pares') return todas.filter(function (x) { return x % 2 === 0; });
+  if (txt === 'pares-rev') return todas.filter(function (x) { return x % 2 === 0; }).reverse();
+  var out = [];
+  txt.split(',').forEach(function (p) {
+    var m = p.match(/^(\d+)(?:-(\d+))?$/); if (!m) return;
+    var a = Number(m[1]), b = m[2] ? Number(m[2]) : a; if (b < a) { var t = a; a = b; b = t; }
+    for (var j = a; j <= b; j++) if (j >= 1 && j <= n && out.indexOf(j) === -1) out.push(j);
+  });
+  return out;
+}
+/* Corre dentro del documento ya escrito: arma las hojas, deja solo las elegidas e imprime. */
+function armarHojas(txt){
+  document.querySelectorAll('.noprint,.repBarra').forEach(function (x) { x.remove(); });
+  window.PagedPolyfill.preview().then(function () {
+    var pages = [].slice.call(document.querySelectorAll('.pagedjs_page')), n = pages.length;
+    var sel = hojasElegidas(txt, n);
+    if (!sel.length) { document.body.innerHTML = '<p style="font:15px system-ui;text-align:center;padding:40px">No hay hojas que imprimir (el documento tiene ' + n + ').</p>'; setTimeout(function(){ try { window.close(); } catch (e) {} }, 8000); return; }
+    var cont = pages[0].parentNode;
+    pages.forEach(function (p, i) { if (sel.indexOf(i + 1) === -1) p.style.display = 'none'; });
+    sel.forEach(function (num) { cont.appendChild(pages[num - 1]); });   // en el orden elegido (pares al revés)
+    setTimeout(function () { try { window.print(); } catch (e) {} }, 400);
+  });
+}
+
 if (!k) { aviso('Falta la clave de la receta.'); }
 else {
   fetch(SISTEMA, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -23,8 +54,16 @@ else {
     .then(function(j){
       if (!j || !j.ok) throw new Error((j && j.e) || 'Error del sistema');
       var cierre = '<scr' + 'ipt>window.onafterprint=function(){setTimeout(function(){try{window.close();}catch(e){}},1500);};' +
-        'setTimeout(function(){try{window.close();}catch(e){}},20000);</scr' + 'ipt>';
+        'setTimeout(function(){try{window.close();}catch(e){}},' + (hojas ? 60000 : 20000) + ');</scr' + 'ipt>';
       var h = String(j.r.html || '');
+      if (hojas && hojas !== 'todas') {
+        // Sin la impresión automática: se imprime cuando las hojas ya están armadas.
+        h = h.replace(/window\.addEventListener\("load",function\(\)\{setTimeout\(function\(\)\{try\{window\.print\(\);\}catch\(e\)\{\}\},800\);\}\);/g, '');
+        var arma = '<scr' + 'ipt>window.PagedConfig={auto:false};</scr' + 'ipt><scr' + 'ipt src="' + PAGED + '"></scr' + 'ipt>' +
+          '<scr' + 'ipt>' + hojasElegidas.toString() + armarHojas.toString() +
+          'window.addEventListener("load",function(){armarHojas(' + JSON.stringify(hojas) + ');});</scr' + 'ipt>';
+        h = /<\/head>/i.test(h) ? h.replace(/<\/head>/i, arma + '</head>') : arma + h;
+      }
       h = /<\/body>/i.test(h) ? h.replace(/<\/body>/i, cierre + '</body>') : h + cierre;
       document.open(); document.write(h); document.close();
     })
